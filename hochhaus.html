@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hochhaus – Lichter</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 16px;
+    background: #f4f4f4;
+    text-align: center;
+    color: #333;
+  }
+  canvas {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .buttons {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  button {
+    font-size: 16px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid #888;
+    background: #fff;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<p>Tippe auf die Fenster, um das Licht an- oder auszuschalten.</p>
+<canvas id="haus"></canvas>
+<div class="buttons">
+  <button id="startzustand">Startzustand</button>
+  <button id="alleAus">Alle aus</button>
+  <button id="alleAn">Alle an</button>
+  <button id="speichern">Als JPG speichern</button>
+</div>
+
+<script>
+const COLS = 8;
+const ROWS = 8;
+const S = 3;                  // Skalierung für scharfe Darstellung und Export
+const CELL = 32;              // Größe eines Fensters
+const GAP = 8;                // Abstand zwischen den Fenstern
+const PAD = 12;               // Rand des Gebäudes
+const PITCH = CELL + GAP;
+const W = 336;
+const H = 360;
+const FARBE_WAND = '#9a9a9a';
+const FARBE_AUS = '#666666';
+const FARBE_AN = '#ffcc00';
+
+// Eingang: unten Mitte, überdeckt zwei Fenster in der letzten Reihe
+const TUER = { reihe: 7, spalte: 3, breiteSpalten: 2 };
+
+function istFenster(r, c) {
+  const inTuer = r === TUER.reihe && c >= TUER.spalte && c < TUER.spalte + TUER.breiteSpalten;
+  return !inTuer;
+}
+
+// Startzustand wie im Bild (Reihe 1 = oberste Reihe)
+const START_AN = [
+  [0, 6], [0, 7],
+  [1, 3], [1, 4], [1, 5], [1, 6], [1, 7]
+];
+
+function leererZustand(wert) {
+  return Array.from({ length: ROWS }, () => Array(COLS).fill(wert));
+}
+
+let zustand = leererZustand(false);
+
+function setzeStartzustand() {
+  zustand = leererZustand(false);
+  START_AN.forEach(([r, c]) => { zustand[r][c] = true; });
+  zeichne();
+}
+
+function setzeAlle(an) {
+  zustand = leererZustand(false);
+  if (an) {
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        zustand[r][c] = istFenster(r, c);
+  }
+  zeichne();
+}
+
+const canvas = document.getElementById('haus');
+const ctx = canvas.getContext('2d');
+canvas.width = W * S;
+canvas.height = H * S;
+
+function zeichne() {
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+
+  // Gebäude
+  ctx.fillStyle = FARBE_WAND;
+  ctx.fillRect(0, 0, W, H);
+
+  // Fenster
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (!istFenster(r, c)) continue;
+      ctx.fillStyle = zustand[r][c] ? FARBE_AN : FARBE_AUS;
+      ctx.fillRect(PAD + c * PITCH, PAD + r * PITCH, CELL, CELL);
+    }
+  }
+
+  // Eingang
+  const tuerX = PAD + TUER.spalte * PITCH;
+  const tuerY = PAD + TUER.reihe * PITCH;
+  ctx.fillStyle = FARBE_AUS;
+  ctx.fillRect(tuerX, tuerY, TUER.breiteSpalten * CELL + (TUER.breiteSpalten - 1) * GAP, H - tuerY);
+}
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width * W;
+  const y = (e.clientY - rect.top) / rect.height * H;
+
+  const c = Math.floor((x - PAD) / PITCH);
+  const r = Math.floor((y - PAD) / PITCH);
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+  if (!istFenster(r, c)) return;
+
+  zustand[r][c] = !zustand[r][c];
+  zeichne();
+});
+
+document.getElementById('startzustand').addEventListener('click', setzeStartzustand);
+document.getElementById('alleAus').addEventListener('click', () => setzeAlle(false));
+document.getElementById('alleAn').addEventListener('click', () => setzeAlle(true));
+
+document.getElementById('speichern').addEventListener('click', () => {
+  zeichne();
+  const link = document.createElement('a');
+  link.download = 'hochhaus.jpg';
+  link.href = canvas.toDataURL('image/jpeg', 0.95);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+});
+
+setzeStartzustand();
+</script>
+</body>
+</html>
